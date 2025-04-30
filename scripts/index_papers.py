@@ -16,19 +16,21 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import os
+from dotenv import load_dotenv            # ⬅ pip install python-dotenv
+load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
 
 import faiss
 import numpy as np
 import pdfplumber
 from tqdm import tqdm
 
+
 from app.utils.chunker import chunk_page
 from app.utils.embedding import embed_text
 
-import os
-from dotenv import load_dotenv            # ⬅ pip install python-dotenv
 
-load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
+
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -46,7 +48,8 @@ def index_single_pdf(pdf_path: Path, index: faiss.Index, meta_store: list) -> No
     """Chunk + embed one PDF and append data to the FAISS index and metadata list."""
     with pdfplumber.open(pdf_path) as pdf:
         for page_num, page in enumerate(pdf.pages, start=1):
-            for chunk in chunk_page(page, page_num):
+            # for chunk in chunk_page(page, page_num):
+            for chunk in chunk_page(page, page_num=page_num):
                 vec = np.asarray(embed_text(chunk["text"]), dtype="float32").reshape(1, -1)
 
                 id_ = len(meta_store)          # next integer ID
