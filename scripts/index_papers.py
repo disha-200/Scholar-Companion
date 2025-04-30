@@ -25,6 +25,11 @@ from tqdm import tqdm
 from app.utils.chunker import chunk_page
 from app.utils.embedding import embed_text
 
+import os
+from dotenv import load_dotenv            # ⬅ pip install python-dotenv
+
+load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
+
 # --------------------------------------------------------------------------- #
 # Config
 # --------------------------------------------------------------------------- #

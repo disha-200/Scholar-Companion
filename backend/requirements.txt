@@ -1,0 +1,4 @@
+tiktoken
+faiss-cpu
+python-dotenv
+openai
