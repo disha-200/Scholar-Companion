@@ -4,7 +4,10 @@ from pdfplumber.pdfminer.pdfparser import PDFSyntaxError
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
+from pathlib import Path
+from dotenv import load_dotenv            # ⬅ pip install python-dotenv
 
+load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
 
 app = FastAPI()
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
