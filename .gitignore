@@ -15,3 +15,5 @@ node_modules/
 *.doc
 *.docx
 
+# Vector store binaries
+vector_store/
