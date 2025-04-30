@@ -20,17 +20,16 @@ import os
 from dotenv import load_dotenv            # ⬅ pip install python-dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
 
-import faiss
-import numpy as np
-import pdfplumber
-from tqdm import tqdm
-
+import logging
+logging.getLogger("pdfminer.pdfpage").setLevel(logging.ERROR) 
 
 from app.utils.chunker import chunk_page
 from app.utils.embedding import embed_text
 
-
-
+import faiss
+import numpy as np
+import pdfplumber
+from tqdm import tqdm
 
 # --------------------------------------------------------------------------- #
 # Config
@@ -52,9 +51,9 @@ def index_single_pdf(pdf_path: Path, index: faiss.Index, meta_store: list) -> No
             for chunk in chunk_page(page, page_num=page_num):
                 vec = np.asarray(embed_text(chunk["text"]), dtype="float32").reshape(1, -1)
 
-                id_ = len(meta_store)          # next integer ID
-                index.add_with_ids(vec, np.array([id_]))
-                meta_store.append({**chunk, "pdf_name": pdf_path.name})
+                id_ = len(meta_store)                     # next integer ID
+                index.add_with_ids(vec, np.array([id_], dtype="int64"))
+                meta_store.append({**chunk, "id": id_, "pdf_name": pdf_path.name})
 
 
 def build_index(root: Path) -> None:
@@ -64,7 +63,8 @@ def build_index(root: Path) -> None:
     if not pdfs:
         return
 
-    faiss_index = faiss.IndexFlatL2(DIM)
+    # faiss_index = faiss.IndexFlatL2(DIM)
+    faiss_index = faiss.IndexIDMap(faiss.IndexFlatL2(DIM))
     metadata: list[dict] = []
 
     with tqdm(total=len(pdfs), desc="Indexing", unit="pdf") as bar:
