@@ -17,3 +17,8 @@ node_modules/
 
 # Vector store binaries
 vector_store/
+vector_store/*.faiss
+vector_store/*.json
+backend/.env
+vector_store/*.faiss
+vector_store/*.json

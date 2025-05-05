@@ -1,103 +1,100 @@
 #!/usr/bin/env python3
 """
-Build a FAISS index from all PDFs in a directory.
+Build *per‑paper* FAISS indices.
 
 $ python scripts/index_papers.py               # defaults to backend/uploads
-$ python scripts/index_papers.py --dir docs/   # custom directory
+$ python scripts/index_papers.py --dir docs/
 
 Outputs
 -------
-vector_store/vector.index       (binary FAISS file)
-vector_store/vector_meta.json   (chunk-level metadata)
+vector_store/<paperId>.faiss   (binary FAISS)
+vector_store/<paperId>.json    (chunk‑level metadata)
 """
 
 from __future__ import annotations
 
-import argparse
-import json
+import argparse, json, logging, os, sys
 from pathlib import Path
-import os
-from dotenv import load_dotenv            # ⬅ pip install python-dotenv
+
+# ─── allow `import app.*` ────────────────────────────────────────────
+sys.path.append(str(Path(__file__).resolve().parents[1] / "backend"))
+
+from dotenv import load_dotenv          # pip install python-dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
-
-import logging
-logging.getLogger("pdfminer.pdfpage").setLevel(logging.ERROR) 
-
-from app.utils.chunker import chunk_page
-from app.utils.embedding import embed_text
 
 import faiss
 import numpy as np
 import pdfplumber
 from tqdm import tqdm
 
-# --------------------------------------------------------------------------- #
-# Config
-# --------------------------------------------------------------------------- #
+from app.utils.chunker import chunk_page
+from app.utils.embedding import embed_text
 
-DIM = 1536                             # ada-002 output size
+# ------------------------------------------------------------------ #
+# Config
+# ------------------------------------------------------------------ #
+DIM = 1536                                   # ada‑002 vector size
 VECTOR_DIR = Path(__file__).resolve().parents[1] / "vector_store"
 VECTOR_DIR.mkdir(exist_ok=True)
 
-# --------------------------------------------------------------------------- #
-# Index helpers
-# --------------------------------------------------------------------------- #
+logging.getLogger("pdfminer.pdfpage").setLevel(logging.ERROR)
 
-def index_single_pdf(pdf_path: Path, index: faiss.Index, meta_store: list) -> None:
-    """Chunk + embed one PDF and append data to the FAISS index and metadata list."""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page_num, page in enumerate(pdf.pages, start=1):
-            # for chunk in chunk_page(page, page_num):
-            for chunk in chunk_page(page, page_num=page_num):
-                vec = np.asarray(embed_text(chunk["text"]), dtype="float32").reshape(1, -1)
-
-                id_ = len(meta_store)                     # next integer ID
-                index.add_with_ids(vec, np.array([id_], dtype="int64"))
-                meta_store.append({**chunk, "id": id_, "pdf_name": pdf_path.name})
-
-
-def build_index(root: Path) -> None:
-    pdfs = list(root.glob("*.pdf"))
-    print(f"🗂  Found {len(pdfs)} PDF(s) in {root}")
-
-    if not pdfs:
-        return
-
-    # faiss_index = faiss.IndexFlatL2(DIM)
-    faiss_index = faiss.IndexIDMap(faiss.IndexFlatL2(DIM))
+# ------------------------------------------------------------------ #
+# Helpers
+# ------------------------------------------------------------------ #
+def index_single_pdf(pdf_path: Path) -> None:
+    """Create FAISS + metadata files for one PDF."""
+    # index = faiss.IndexIDMap(faiss.IndexFlatL2(DIM))
+    index = faiss.IndexIDMap(faiss.IndexFlatIP(DIM))
     metadata: list[dict] = []
 
-    with tqdm(total=len(pdfs), desc="Indexing", unit="pdf") as bar:
-        for pdf in pdfs:
-            index_single_pdf(pdf, faiss_index, metadata)
-            bar.update(1)
+    with pdfplumber.open(pdf_path) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            for chunk in chunk_page(page, page_num=page_num):
+                clean = chunk["text"]
+                # vec = np.asarray(embed_text(chunk["text"]), dtype="float32")[None, :]
+                vec = np.asarray(embed_text(clean), dtype="float32")          # 1‑D
+                vec /= np.linalg.norm(vec) + 1e-9                             # unit length
+                vec = vec[None, :]                                            # 2‑D for FAISS
+                id_ = len(metadata)
+                index.add_with_ids(vec, np.array([id_], dtype="int64"))
+                # metadata.append({**chunk, "id": id_, "pdf_name": pdf_path.name})
+                metadata.append({
+        **chunk,                # keeps page_num, chunk_idx, tokens, *raw text*
+        "id"       : id_,
+        "pdf_name" : pdf_path.name,
+        "clean_text": clean     # ➊  NEW FIELD
+    })
 
-    # ---------- persist ----------
-    faiss_path = VECTOR_DIR / "vector.index"
-    meta_path = VECTOR_DIR / "vector_meta.json"
+    # ---------- persist with FULL stem (including dots) ----------
+    paper_id  = pdf_path.name.removesuffix(".pdf")   # keeps 2504.13079v1
+    faiss_path = VECTOR_DIR / f"{paper_id}.faiss"
+    meta_path  = VECTOR_DIR / f"{paper_id}.json"
 
-    faiss.write_index(faiss_index, str(faiss_path))
-    with open(meta_path, "w") as f:
-        json.dump(metadata, f, indent=2)
+    faiss.write_index(index, str(faiss_path))
+    meta_path.write_text(json.dumps(metadata, indent=2))
 
-    print(f"✅  {faiss_index.ntotal} vectors  →  {faiss_path}")
-    print(f"✅  {len(metadata)} metadata rows →  {meta_path}")
+    print(f"✅  {pdf_path.name:<30} → {len(metadata):>5} vectors  ({faiss_path.name})")
 
-
-# --------------------------------------------------------------------------- #
+# ------------------------------------------------------------------ #
 # CLI
-# --------------------------------------------------------------------------- #
-
+# ------------------------------------------------------------------ #
 if __name__ == "__main__":
     default_dir = Path(__file__).resolve().parents[1] / "backend" / "uploads"
 
     parser = argparse.ArgumentParser(description="Embed & index all PDFs in a folder")
     parser.add_argument(
-        "--dir",
-        type=Path,
-        default=default_dir,
+        "--dir", type=Path, default=default_dir,
         help=f"PDF directory (default: {default_dir})",
     )
     args = parser.parse_args()
 
-    build_index(args.dir)
+    pdfs = sorted(args.dir.glob("*.pdf"))
+    if not pdfs:
+        print(f"⛔ No PDFs found in {args.dir}")
+        raise SystemExit(1)
+
+    with tqdm(total=len(pdfs), desc="Indexing", unit="pdf") as bar:
+        for pdf in pdfs:
+            index_single_pdf(pdf)
+            bar.update(1)

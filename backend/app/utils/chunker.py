@@ -116,9 +116,14 @@ def chunk_page(page_obj, *, page_num: int, **kwargs) -> List[Dict]:
     """
     Convenience wrapper for a *pdfplumber* Page object.
 
-    You can still call `chunk_text` directly if you already extracted text.
+    Cleans up weird spacing, then delegates to `chunk_text`.
     """
-    text = page_obj.extract_text() or ""
+    # 1️⃣  Pull text with slightly tighter x/y tolerances
+    text = page_obj.extract_text(x_tolerance=1, y_tolerance=2) or ""
+
+    # 2️⃣  Collapse all whitespace (keeps single spaces, removes newlines & doubles)
+    text = " ".join(text.split())
+
     return chunk_text(text, page_num=page_num, **kwargs)
 
 

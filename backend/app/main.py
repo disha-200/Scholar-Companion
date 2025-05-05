@@ -1,6 +1,8 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from .routes import chat
 import pdfplumber
-from pdfplumber.pdfminer.pdfparser import PDFSyntaxError
+# from pdfplumber.pdfminer.pdfparser import PDFSyntaxError
+from pdfminer.pdfparser import PDFSyntaxError
 import os
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,6 +12,7 @@ from dotenv import load_dotenv            # ⬅ pip install python-dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
 
 app = FastAPI()
+app.include_router(chat.router)
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.normpath(os.path.join(BASE_DIR, "..", "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
