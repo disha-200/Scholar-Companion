@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -51,6 +52,12 @@ export default function Home() {
           </a>
         </div>
       </main>
+      <Link
+        href="/chat/2504.13079v1"
+        className="mt-8 text-blue-600 hover:underline"
+      >
+        💬 Try the Chat UI for paper 2504.13079v1
+      </Link>
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
         <a
           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
