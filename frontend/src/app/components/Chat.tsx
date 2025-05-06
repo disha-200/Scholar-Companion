@@ -11,14 +11,15 @@ type Message = {
   citations?: Citation[];
 };
 
-interface ChatProps { paperId: string; }
+interface ChatProps {
+  paperId: string;
+}
 
 export function Chat({ paperId }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 1️⃣ POST to /api/chat
   async function fetchChat(query: string) {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -29,9 +30,9 @@ export function Chat({ paperId }: ChatProps) {
     return res.json() as Promise<ChatResponse>;
   }
 
-  // 2️⃣ React Query mutation
-  const mutation = useMutation(fetchChat, {
-    onMutate: (query) => {
+  const mutation = useMutation({
+    mutationFn: fetchChat,
+    onMutate: (query: string) => {
       setMessages((msgs) => [
         ...msgs,
         { id: `u${Date.now()}`, role: 'user', content: query },
@@ -44,20 +45,17 @@ export function Chat({ paperId }: ChatProps) {
         { id: `a${Date.now()}`, role: 'assistant', content: answer, citations },
       ]);
     },
-    onError: (err) => {
+    onError: (err: Error) => {
       setMessages((msgs) => [
         ...msgs,
-        {
-          id: `e${Date.now()}`,
-          role: 'assistant',
-          content: `⚠ ${(err as Error).message}`,
-        },
+        { id: `e${Date.now()}`, role: 'assistant', content: `⚠ ${err.message}` },
       ]);
     },
-    onSettled: () => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }),
+    onSettled: () => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    },
   });
 
-  // 3️⃣ Handle form submit
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
@@ -71,15 +69,14 @@ export function Chat({ paperId }: ChatProps) {
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`
-              max-w-[70%] p-3 rounded-lg
-              ${m.role === 'user' ? 'self-end bg-blue-200' : 'self-start bg-gray-100'}
-            `}
+            className={`max-w-[70%] p-3 rounded-lg text-black ${
+              m.role === 'user' ? 'self-end bg-blue-200' : 'self-start bg-gray-100'
+            }`}
           >
-            <p>{m.content}</p>
+            <p className="text-black">{m.content}</p>
             {m.citations && (
               <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
-                {m.citations.map((c,i) => (
+                {m.citations.map((c, i) => (
                   <li key={i}>
                     Page {c.page}: “{c.textSnippet}”
                   </li>
@@ -89,8 +86,9 @@ export function Chat({ paperId }: ChatProps) {
           </div>
         ))}
 
-        {mutation.isLoading && (
-          <div className="self-start p-3 rounded-lg bg-gray-100 flex items-center space-x-2">
+        {/* spinner */}
+        {mutation.isPending && (
+          <div className="self-start p-3 rounded-lg bg-gray-100 flex items-center space-x-2 text-black">
             <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" />
             <span>Loading…</span>
           </div>
@@ -100,18 +98,18 @@ export function Chat({ paperId }: ChatProps) {
       </div>
 
       {/* ── Input Bar ── */}
-      <form onSubmit={handleSubmit} className="border-t p-4 flex space-x-2">
+      <form onSubmit={handleSubmit} className="border-t p-4 flex space-x-2 bg-gray-800">
         <input
-          className="flex-1 border rounded px-3 py-2"
+          className="flex-1 border rounded px-3 py-2 bg-gray-700 text-white placeholder-gray-400"
           placeholder="Ask a question…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={mutation.isLoading}
+          disabled={mutation.isPending}
         />
         <button
           type="submit"
           className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-          disabled={mutation.isLoading}
+          disabled={mutation.isPending}
         >
           Send
         </button>

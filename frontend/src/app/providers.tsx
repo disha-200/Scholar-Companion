@@ -1,4 +1,3 @@
-// src/app/providers.tsx
 'use client';
 
 import { ReactNode, useState } from 'react';
@@ -9,7 +8,7 @@ interface ProvidersProps {
 }
 
 export function Providers({ children }: ProvidersProps) {
-  // instantiate client inside useState so it only runs on the client
+  // instantiate on the client only
   const [queryClient] = useState(() => new QueryClient());
 
   return (

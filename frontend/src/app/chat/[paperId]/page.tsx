@@ -1,10 +1,14 @@
+// src/app/chat/[paperId]/page.tsx
+import { Chat } from '@/app/components/Chat';
 
-import { Chat } from '@/app/components/Chat';     // adjust if your Chat lives elsewhere
-import { useParams } from 'next/navigation';
+// Next.js 15 now makes params a Promise you must await.
+interface ChatPageProps {
+  params: { paperId: string } | Promise<{ paperId: string }>;
+}
 
-export default function ChatPage() {
-  const { paperId } = useParams();
-  if (!paperId) return <p>Loading…</p>;
+export default async function ChatPage({ params }: ChatPageProps) {
+  // await the params before using them
+  const { paperId } = await params;
 
   return (
     <div className="h-screen flex flex-col">
